@@ -452,6 +452,7 @@
   <script>
     const SVG_NS = "http://www.w3.org/2000/svg";
     const g = 32.174;
+    const animationSpeedMultiplier = 4;
     const groundY = 390;
     const scaleY = 1.22;
 
@@ -472,7 +473,7 @@
       { x: 845, y: 390 }
     ];
     let samples = [];
-    let rideIndex = 0;
+    let rideDistance = 0;
     let direction = 1;
     let running = false;
     let previousTime = 0;
@@ -497,13 +498,7 @@
     }
 
     function buildSamples() {
-      const source = [
-        points[0],
-        points[0],
-        ...points,
-        points[points.length - 1],
-        points[points.length - 1]
-      ];
+      const source = [points[0], ...points, points[points.length - 1]];
       const result = [];
       for (let i = 1; i < source.length - 2; i++) {
         for (let j = 0; j <= 20; j++) {
@@ -695,7 +690,7 @@
       const hillHeight = Number(heightInput.value);
       setTrackGeometry(hillHeight);
       if (!skipRideReset) {
-        rideIndex = 0;
+        rideDistance = 0;
         direction = 1;
         running = false;
         previousTime = 0;
@@ -725,11 +720,26 @@
     }
 
     function positionTrain(index) {
-      const bounded = Math.max(0, Math.min(samples.length - 1, Math.round(index)));
-      const point = samples[bounded];
-      if (!point) return;
-      const previous = samples[Math.max(0, bounded - 1)];
-      const angle = Math.atan2(point.y - previous.y, point.x - previous.x) * 180 / Math.PI;
+      const bounded = Math.max(0, Math.min(samples.length - 1, index));
+      const lowIndex = Math.floor(bounded);
+      const highIndex = Math.min(samples.length - 1, lowIndex + 1);
+      const fraction = bounded - lowIndex;
+      const low = samples[lowIndex];
+      const high = samples[highIndex];
+      if (!low || !high) return;
+
+      const point = {
+        x: low.x + (high.x - low.x) * fraction,
+        y: low.y + (high.y - low.y) * fraction,
+        speedMph: low.speedMph + (high.speedMph - low.speedMph) * fraction,
+        gForce: low.gForce + (high.gForce - low.gForce) * fraction,
+        height: low.height + (high.height - low.height) * fraction
+      };
+      const previousIndex = Math.max(0, lowIndex - 1);
+      const nextIndex = Math.min(samples.length - 1, highIndex + 1);
+      const previous = samples[previousIndex];
+      const next = samples[nextIndex];
+      const angle = Math.atan2(next.y - previous.y, next.x - previous.x) * 180 / Math.PI;
       train.setAttribute("transform", `translate(${point.x} ${point.y}) rotate(${angle})`);
 
       document.querySelector("#speedStat").textContent = `${point.speedMph.toFixed(1)} mph`;
@@ -746,7 +756,7 @@
 
     function stopRide() {
       running = false;
-      rideIndex = 0;
+      rideDistance = 0;
       direction = 1;
       previousTime = 0;
       positionTrain(0);
@@ -765,39 +775,74 @@
       if (!running) return;
       const delta = Math.min((time - previousTime) / 1000, 0.05);
       previousTime = time;
-      const ftPerSvgPx = Number(lengthInput.value) / 790;
-      const point = samples[Math.round(rideIndex)];
-      if (!point) {
+      if (!samples.length) {
         running = false;
         document.querySelector("#statusStat").textContent = "Complete";
         return;
       }
+      const trackPixelLength = samples[samples.length - 1].distance;
+      const ftPerSvgPx = Number(lengthInput.value) / Math.max(trackPixelLength, 1);
 
-      if (failureIndex !== null && rideIndex >= failureIndex) {
+      const failureDistance = failureIndex === null ? Infinity : samples[failureIndex].distance;
+      let rideIndex = indexAtDistance(rideDistance);
+      if (failureIndex !== null && direction > 0 && rideDistance >= failureDistance) {
+        rideDistance = failureDistance;
+        rideIndex = failureIndex;
         direction = -1;
         document.querySelector("#statusStat").textContent = "Roll back";
       }
 
-      const feetPerSecond = Math.max(0, point.speedMph * 5280 / 3600);
-      const pixelsPerSecond = feetPerSecond / ftPerSvgPx;
-      rideIndex += direction * pixelsPerSecond * delta;
+      const currentIndex = Math.max(0, Math.min(samples.length - 1, rideIndex));
+      let nextIndex = direction > 0
+        ? Math.min(samples.length - 1, Math.floor(currentIndex) + 1)
+        : Math.max(0, Math.ceil(currentIndex) - 1);
+      while (
+        nextIndex > 0 &&
+        nextIndex < samples.length - 1 &&
+        Math.abs(samples[nextIndex].distance - rideDistance) < 0.000001
+      ) {
+        nextIndex += direction;
+      }
+      const currentPoint = samples[Math.round(currentIndex)];
+      const nextPoint = samples[nextIndex];
+      const averageSpeedFps = (currentPoint.speedMph + nextPoint.speedMph) * 0.5 * 5280 / 3600;
+      const distanceStep = averageSpeedFps * animationSpeedMultiplier * delta / ftPerSvgPx;
+      rideDistance += direction * distanceStep;
 
-      if (rideIndex <= 0 && direction < 0) {
-        rideIndex = 0;
+      if (rideDistance <= 0 && direction < 0) {
+        rideDistance = 0;
         running = false;
         document.querySelector("#statusStat").textContent = "Rollback";
         positionTrain(0);
         return;
       }
 
-      if (rideIndex >= samples.length - 1) {
-        rideIndex = samples.length - 1;
+      if (rideDistance >= samples[samples.length - 1].distance) {
+        rideDistance = samples[samples.length - 1].distance;
         running = false;
         document.querySelector("#statusStat").textContent = "Complete";
       }
 
-      positionTrain(rideIndex);
+      positionTrain(indexAtDistance(rideDistance));
       if (running) requestAnimationFrame(animateRide);
+    }
+
+    function indexAtDistance(distance) {
+      let low = 0;
+      let high = samples.length - 1;
+      while (low < high) {
+        const middle = Math.floor((low + high) / 2);
+        if (samples[middle].distance < distance) low = middle + 1;
+        else high = middle;
+      }
+
+      const upper = low;
+      if (upper === 0) return 0;
+      const lower = upper - 1;
+      const segmentLength = samples[upper].distance - samples[lower].distance;
+      if (segmentLength <= 0) return upper;
+      const fraction = (distance - samples[lower].distance) / segmentLength;
+      return lower + Math.max(0, Math.min(1, fraction));
     }
 
     [heightInput, lengthInput, styleInput].forEach(control => {
