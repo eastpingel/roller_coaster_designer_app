@@ -1,0 +1,875 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Roller Coaster Designer</title>
+  <style>
+    :root {
+      --ink: #17243c;
+      --muted: #677590;
+      --paper: #edf4ff;
+      --panel: #ffffff;
+      --line: #d7e1ef;
+      --blue: #4d79e6;
+      --blue-dark: #315ac1;
+      --orange: #ffad32;
+      --red: #df4c65;
+      --green: #35a875;
+      --track: #263d66;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Inter, ui-rounded, "Segoe UI", system-ui, sans-serif;
+      color: var(--ink);
+      background: var(--paper);
+    }
+
+    .app {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 300px 1fr;
+    }
+
+    aside {
+      background: var(--panel);
+      border-right: 1px solid var(--line);
+      padding: 24px 22px;
+      overflow-y: auto;
+    }
+
+    h1 {
+      margin: 0 0 4px;
+      font-size: 21px;
+      letter-spacing: -0.02em;
+    }
+
+    .subtitle {
+      margin: 0 0 22px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .control-section {
+      padding: 16px 0;
+      border-top: 1px solid var(--line);
+    }
+
+    .control-section h2 {
+      margin: 0 0 12px;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .field { margin-bottom: 14px; }
+
+    .field-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 7px;
+    }
+
+    label {
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    output {
+      color: var(--blue-dark);
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--blue);
+    }
+
+    select {
+      width: 100%;
+      height: 40px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: white;
+      color: var(--ink);
+      padding: 0 10px;
+    }
+
+    main {
+      min-width: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .topbar {
+      height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .topbar strong { font-size: 15px; }
+
+    .actions { display: flex; gap: 8px; }
+
+    button {
+      height: 38px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: white;
+      color: var(--ink);
+      padding: 0 13px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    button.primary {
+      border-color: var(--blue);
+      background: var(--blue);
+      color: white;
+    }
+
+    button.danger {
+      border-color: #f2b6c1;
+      color: #a72f48;
+    }
+
+    button:focus-visible,
+    input:focus-visible,
+    select:focus-visible,
+    [tabindex]:focus-visible {
+      outline: 3px solid rgba(77, 121, 230, 0.28);
+      outline-offset: 2px;
+    }
+
+    .workspace {
+      flex: 1;
+      min-height: 0;
+      display: grid;
+      grid-template-rows: minmax(390px, 1fr) 145px;
+      padding: 18px 22px 20px;
+      gap: 12px;
+    }
+
+    .canvas-area {
+      position: relative;
+      min-height: 390px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background:
+        linear-gradient(rgba(103, 117, 144, 0.10) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(103, 117, 144, 0.10) 1px, transparent 1px),
+        #fbfdff;
+      background-size: 32px 32px;
+    }
+
+    #trackSvg {
+      width: 100%;
+      height: 100%;
+      display: block;
+      touch-action: none;
+    }
+
+    .support {
+      stroke: #99a7ba;
+      stroke-width: 5;
+      stroke-linecap: round;
+    }
+
+    .track-shadow {
+      fill: none;
+      stroke: rgba(23, 36, 60, 0.16);
+      stroke-width: 20;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .track-main {
+      fill: none;
+      stroke: var(--track);
+      stroke-width: 12;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .track-light {
+      fill: none;
+      stroke: #91a4bf;
+      stroke-width: 3;
+      stroke-linecap: round;
+    }
+
+    .point {
+      fill: #ffffff;
+      stroke: var(--blue);
+      stroke-width: 4;
+      cursor: grab;
+    }
+
+    .point:active { cursor: grabbing; }
+
+    .car-body {
+      fill: var(--orange);
+      stroke: #9d5d08;
+      stroke-width: 2;
+    }
+
+    .car-wheel { fill: var(--ink); }
+
+    .failure-marker {
+      fill: var(--red);
+      stroke: #fff;
+      stroke-width: 4;
+    }
+
+    .stats {
+      position: absolute;
+      left: 14px;
+      top: 14px;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(92px, 1fr));
+      background: rgba(255, 255, 255, 0.96);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      box-shadow: 0 8px 24px rgba(23, 36, 60, 0.08);
+    }
+
+    .stat {
+      min-width: 92px;
+      padding: 9px 12px;
+      border-right: 1px solid var(--line);
+    }
+
+    .stat:last-child { border-right: 0; }
+
+    .stat span {
+      display: block;
+      color: var(--muted);
+      font-size: 10px;
+      margin-bottom: 3px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .stat strong { font-size: 15px; }
+
+    .plot-panel {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .plot {
+      position: relative;
+      min-width: 0;
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 8px 10px 6px;
+    }
+
+    .plot h3 {
+      position: absolute;
+      margin: 0;
+      left: 14px;
+      top: 9px;
+      z-index: 1;
+      font-size: 11px;
+    }
+
+    .plot svg { width: 100%; height: 120px; display: block; }
+
+    .plot-line {
+      fill: none;
+      stroke: var(--blue);
+      stroke-width: 3;
+      vector-effect: non-scaling-stroke;
+    }
+
+    .g-line { stroke: var(--orange); }
+
+    .plot-limit {
+      fill: none;
+      stroke: var(--red);
+      stroke-width: 1;
+      stroke-dasharray: 5 5;
+      opacity: 0.8;
+    }
+
+    dialog {
+      width: min(520px, calc(100vw - 32px));
+      border: 0;
+      border-radius: 14px;
+      padding: 22px;
+      color: var(--ink);
+      box-shadow: 0 20px 60px rgba(23, 36, 60, 0.28);
+    }
+
+    dialog::backdrop { background: rgba(23, 36, 60, 0.38); }
+
+    dialog h2 { margin-top: 0; }
+    dialog p { line-height: 1.55; }
+
+    .formula {
+      display: block;
+      margin: 12px 0;
+      padding: 12px;
+      border-radius: 8px;
+      background: #edf4ff;
+      font-family: ui-monospace, Consolas, monospace;
+    }
+
+    @media (max-width: 760px) {
+      .app { grid-template-columns: 1fr; }
+      aside { border-right: 0; border-bottom: 1px solid var(--line); }
+      main { min-height: 700px; }
+      .topbar { height: 58px; padding: 0 12px; }
+      .workspace { grid-template-rows: 430px 290px; padding: 10px; }
+      .stats { grid-template-columns: repeat(2, 1fr); }
+      .plot-panel { grid-template-columns: 1fr; }
+      .plot svg { height: 125px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside>
+      <h1>Roller Coaster</h1>
+      <p class="subtitle">Drag the track points</p>
+
+      <section class="control-section">
+        <h2>Starting hill</h2>
+        <div class="field">
+          <div class="field-row">
+            <label for="height">Starting height</label>
+            <output id="heightOutput" for="height">180 ft</output>
+          </div>
+          <input id="height" type="range" min="60" max="320" value="180" aria-describedby="heightHelp">
+        </div>
+      </section>
+
+      <section class="control-section">
+        <h2>Track</h2>
+        <div class="field">
+          <div class="field-row">
+            <label for="length">Track length</label>
+            <output id="lengthOutput" for="length">3,200 ft</output>
+          </div>
+          <input id="length" type="range" min="1000" max="6000" step="100" value="3200">
+        </div>
+        <div class="field">
+          <label for="style">Coaster style</label>
+          <select id="style">
+            <option value="steel">Steel</option>
+            <option value="wood">Wooden</option>
+            <option value="hyper">Hyper</option>
+          </select>
+        </div>
+      </section>
+
+      <section class="control-section">
+        <h2>Score</h2>
+        <div class="stat" style="border:0;padding:0">
+          <span>Track rating</span>
+          <strong id="scoreStat">--</strong>
+        </div>
+      </section>
+    </aside>
+
+    <main>
+      <header class="topbar">
+        <strong id="coasterName">Untitled Coaster</strong>
+        <div class="actions">
+          <button id="rideButton" class="primary" type="button">Ride</button>
+          <button id="physicsButton" type="button">Physics</button>
+          <button id="resetButton" type="button">Reset</button>
+          <button id="saveButton" class="primary" type="button">Save design</button>
+        </div>
+      </header>
+
+      <div class="workspace">
+        <div class="canvas-area" aria-label="Coaster track editor">
+          <svg id="trackSvg" viewBox="0 0 900 500" role="img" aria-label="Side view of a roller coaster track. Drag control points to shape it.">
+            <g id="supports" aria-hidden="true"></g>
+            <path id="trackShadow" class="track-shadow"></path>
+            <path id="trackMain" class="track-main"></path>
+            <path id="trackLight" class="track-light"></path>
+            <g id="failureMarker" aria-hidden="true" style="display:none">
+              <circle class="failure-marker" r="12"></circle>
+              <path d="M-6 -3 L6 3 M6 -3 L-6 3" stroke="#fff" stroke-width="3"></path>
+            </g>
+            <g id="train" aria-label="Coaster car">
+              <rect class="car-body" x="-22" y="-12" width="44" height="24" rx="7"></rect>
+              <circle class="car-wheel" cx="-13" cy="13" r="6"></circle>
+              <circle class="car-wheel" cx="13" cy="13" r="6"></circle>
+            </g>
+            <g id="controlPoints"></g>
+          </svg>
+
+          <div class="stats" aria-live="polite">
+            <div class="stat"><span>Speed</span><strong id="speedStat">0 mph</strong></div>
+            <div class="stat"><span>Vertical g</span><strong id="gStat">1.0 g</strong></div>
+            <div class="stat"><span>Height</span><strong id="heightStat">180 ft</strong></div>
+            <div class="stat"><span>Status</span><strong id="statusStat">Ready</strong></div>
+          </div>
+        </div>
+
+        <div class="plot-panel" aria-label="Track readout plots">
+          <div class="plot">
+            <h3>Speed along track</h3>
+            <svg id="speedPlot" viewBox="0 0 500 120" role="img" aria-label="Speed plot"></svg>
+          </div>
+          <div class="plot">
+            <h3>Vertical g-force along track</h3>
+            <svg id="gPlot" viewBox="0 0 500 120" role="img" aria-label="Vertical g-force plot"></svg>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <dialog id="physicsDialog" aria-labelledby="physicsTitle">
+    <h2 id="physicsTitle">Physics describer</h2>
+    <p>The train rises to the selected starting height, then gravity converts gravitational potential energy into kinetic energy.</p>
+    <span class="formula">v = sqrt(2g(h0 - h))</span>
+    <p><strong>Speed:</strong> height is converted to speed using no-friction conservation of energy.</p>
+    <p><strong>G-force:</strong> the displayed value is 1 g from gravity plus the normal acceleration around track curvature. A valley can raise g-force; a crest can lower it.</p>
+    <p><strong>Failure:</strong> a crest above the available starting energy is unreachable. The car stops or rolls back. It also fails above 4 g or below -1 g.</p>
+    <button id="closePhysics" class="primary" type="button">Got it</button>
+  </dialog>
+
+  <script>
+    const SVG_NS = "http://www.w3.org/2000/svg";
+    const g = 32.174;
+    const groundY = 390;
+    const scaleY = 1.22;
+
+    const heightInput = document.querySelector("#height");
+    const lengthInput = document.querySelector("#length");
+    const styleInput = document.querySelector("#style");
+    const trackMain = document.querySelector("#trackMain");
+    const train = document.querySelector("#train");
+    const controlPoints = document.querySelector("#controlPoints");
+    const failureMarker = document.querySelector("#failureMarker");
+
+    let points = [
+      { x: 55, y: 170 },
+      { x: 200, y: 390 },
+      { x: 330, y: 390 },
+      { x: 520, y: 390 },
+      { x: 650, y: 250 },
+      { x: 845, y: 390 }
+    ];
+    let samples = [];
+    let rideIndex = 0;
+    let direction = 1;
+    let running = false;
+    let previousTime = 0;
+    let failureIndex = null;
+    let dragging = null;
+
+    function formatNumber(value) {
+      return Number(value).toLocaleString("en-US");
+    }
+
+    function catmullRom(p0, p1, p2, p3, t) {
+      const t2 = t * t;
+      const t3 = t2 * t;
+      return {
+        x: 0.5 * ((2 * p1.x) + (-p0.x + p2.x) * t +
+          (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 +
+          (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3),
+        y: 0.5 * ((2 * p1.y) + (-p0.y + p2.y) * t +
+          (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 +
+          (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3)
+      };
+    }
+
+    function buildSamples() {
+      const source = [
+        points[0],
+        points[0],
+        ...points,
+        points[points.length - 1],
+        points[points.length - 1]
+      ];
+      const result = [];
+      for (let i = 1; i < source.length - 2; i++) {
+        for (let j = 0; j <= 20; j++) {
+          result.push(catmullRom(source[i - 1], source[i], source[i + 1], source[i + 2], j / 20));
+        }
+      }
+      samples = result;
+      let distance = 0;
+      samples.forEach((point, index) => {
+        if (index > 0) {
+          const previous = samples[index - 1];
+          distance += Math.hypot(point.x - previous.x, point.y - previous.y);
+        }
+        point.distance = distance;
+      });
+    }
+
+    function pathData() {
+      if (!samples.length) return "";
+      return samples.map((point, index) =>
+        `${index === 0 ? "M" : "L"}${point.x.toFixed(1)} ${point.y.toFixed(1)}`
+      ).join(" ");
+    }
+
+    function physicalHeight(point, h0) {
+      return Math.max(0, (groundY - point.y) / scaleY);
+    }
+
+    function setTrackGeometry(hillHeight) {
+      const startingHill = points[0];
+      startingHill.y = Math.max(85, groundY - hillHeight * scaleY);
+    }
+
+    function calculatePhysics() {
+      buildSamples();
+      const h0 = Number(heightInput.value);
+      const ftPerSvgPx = Number(lengthInput.value) / 790;
+      let thrillSeconds = 0;
+      failureIndex = null;
+
+      samples.forEach((point, index) => {
+        const height = physicalHeight(point, h0);
+        const availableHeight = h0 - height;
+        const speedFps = availableHeight > 0 ? Math.sqrt(2 * g * availableHeight) : 0;
+        point.speedMph = speedFps * 3600 / 5280;
+        point.height = height;
+
+        const previous = samples[Math.max(0, index - 2)];
+        const next = samples[Math.min(samples.length - 1, index + 2)];
+        const dx = next.x - previous.x;
+        const dyUp = (groundY - next.y) - (groundY - previous.y);
+        const ddyUp = (groundY - previous.y) - 2 * (groundY - point.y) + (groundY - next.y);
+        const physicalDx = dx * ftPerSvgPx;
+        const physicalDy = dyUp / scaleY;
+        const secondDerivative = (ddyUp / scaleY) / Math.max(1, physicalDx * physicalDx);
+        const radius = Math.abs(secondDerivative) > 0.00001 ? 1 / Math.abs(secondDerivative) : 100000;
+        const speedFtPerSec = speedFps;
+        let gForce = 1;
+
+        if (radius < 100000) {
+          const normal = speedFtPerSec * speedFtPerSec / (g * radius);
+          gForce = secondDerivative > 0 ? 1 + normal : 1 - normal;
+        }
+        point.gForce = gForce;
+
+        if (availableHeight < -0.5 && failureIndex === null) failureIndex = index;
+        if (point.gForce > 4 || point.gForce < -1) {
+          if (failureIndex === null) failureIndex = index;
+        }
+
+        if (index > 0) {
+          const segmentLengthFt = Math.hypot(
+            (point.x - samples[index - 1].x) * ftPerSvgPx,
+            (point.y - samples[index - 1].y) / scaleY
+          );
+          if (point.gForce > 3 && point.speedMph > 0) {
+            thrillSeconds += segmentLengthFt / Math.max(1, point.speedMph * 5280 / 3600);
+          }
+        }
+      });
+
+      return { h0, thrillSeconds };
+    }
+
+    function polylineData(values, valueToY) {
+      if (!samples.length) return "";
+      return values.map((value, index) => {
+        const x = 8 + (index / (values.length - 1)) * 484;
+        const y = valueToY(value);
+        return `${index === 0 ? "M" : "L"}${x.toFixed(1)} ${y.toFixed(1)}`;
+      }).join(" ");
+    }
+
+    function svgElement(name, attributes) {
+      const element = document.createElementNS(SVG_NS, name);
+      for (const [key, value] of Object.entries(attributes)) {
+        element.setAttribute(key, value);
+      }
+      return element;
+    }
+
+    function drawPlots() {
+      const speedPlot = document.querySelector("#speedPlot");
+      const gPlot = document.querySelector("#gPlot");
+      speedPlot.replaceChildren();
+      gPlot.replaceChildren();
+
+      const speedMax = Math.max(50, ...samples.map(point => point.speedMph));
+      const speedPath = polylineData(
+        samples.map(point => point.speedMph),
+        value => 112 - (value / speedMax) * 88
+      );
+      speedPlot.appendChild(svgElement("path", { d: speedPath, class: "plot-line" }));
+
+      const gPath = polylineData(
+        samples.map(point => point.gForce),
+        value => 112 - ((value + 1) / 6) * 88
+      );
+      gPlot.appendChild(svgElement("path", { d: gPath, class: "plot-line g-line" }));
+      const topLimitY = 112 - (5 / 6) * 88;
+      const lowerLimitY = 112 - (0 / 6) * 88;
+      gPlot.appendChild(svgElement("line", { x1: "8", y1: topLimitY, x2: "492", y2: topLimitY, class: "plot-limit" }));
+      gPlot.appendChild(svgElement("line", { x1: "8", y1: lowerLimitY, x2: "492", y2: lowerLimitY, class: "plot-limit" }));
+    }
+
+    function drawControlPoints() {
+      controlPoints.replaceChildren();
+      points.forEach((point, index) => {
+        const circle = svgElement("circle", {
+          cx: point.x,
+          cy: point.y,
+          r: "9",
+          class: "point",
+          tabindex: "0",
+          role: "button",
+          "aria-label": `Track control point ${index + 1}. Use arrow keys to move it.`
+        });
+        circle.dataset.index = index;
+        circle.addEventListener("pointerdown", event => {
+          dragging = index;
+          circle.setPointerCapture(event.pointerId);
+          stopRide();
+        });
+        circle.addEventListener("keydown", event => {
+          const step = event.shiftKey ? 10 : 3;
+          if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return;
+          event.preventDefault();
+          if (event.key === "ArrowLeft") point.x -= step;
+          if (event.key === "ArrowRight") point.x += step;
+          if (event.key === "ArrowUp") point.y -= step;
+          if (event.key === "ArrowDown") point.y += step;
+          clampPoint(index);
+          update(true);
+          drawControlPoints();
+          const replacement = controlPoints.querySelector(`[data-index="${index}"]`);
+          replacement?.focus();
+        });
+        controlPoints.appendChild(circle);
+      });
+    }
+
+    function clampPoint(index) {
+      const point = points[index];
+      point.x = Math.max(55, Math.min(845, point.x));
+      point.y = Math.max(65, Math.min(390, point.y));
+      if (index > 0) point.x = Math.max(points[index - 1].x + 35, point.x);
+      if (index < points.length - 1) point.x = Math.min(points[index + 1].x - 35, point.x);
+    }
+
+    function addSupports() {
+      const supports = document.querySelector("#supports");
+      supports.replaceChildren();
+      [120, 230, 340, 470, 610, 760].forEach((x, index) => {
+        const yTop = 390;
+        const pointIndex = Math.min(points.length - 1, Math.max(0, Math.round((x - 55) / 790 * (points.length - 1))));
+        const target = samples[Math.min(samples.length - 1, Math.floor((x / 900) * samples.length))]?.y || yTop;
+        const line = svgElement("line", {
+          x1: x,
+          y1: Math.min(target + 8, yTop),
+          x2: x,
+          y2: yTop,
+          class: "support"
+        });
+        supports.appendChild(line);
+      });
+    }
+
+    function update(skipRideReset = false) {
+      const hillHeight = Number(heightInput.value);
+      setTrackGeometry(hillHeight);
+      if (!skipRideReset) {
+        rideIndex = 0;
+        direction = 1;
+        running = false;
+        previousTime = 0;
+      }
+
+      document.querySelector("#heightOutput").textContent = `${hillHeight} ft`;
+      document.querySelector("#lengthOutput").textContent = `${formatNumber(lengthInput.value)} ft`;
+      document.querySelector("#heightStat").textContent = `${hillHeight} ft`;
+
+      const physics = calculatePhysics();
+      const data = pathData();
+      trackMain.setAttribute("d", data);
+      document.querySelector("#trackShadow").setAttribute("d", data);
+      document.querySelector("#trackLight").setAttribute("d", data);
+      trackMain.style.stroke = styleInput.value === "wood" ? "#76533a" : styleInput.value === "hyper" ? "#245a9b" : "#263d66";
+
+      drawControlPoints();
+      drawPlots();
+      addSupports();
+
+      const totalThrill = physics.thrillSeconds;
+      const unsafe = failureIndex !== null;
+      const score = unsafe ? Math.max(10, Math.round(50 + totalThrill * 2 - 35)) : Math.min(100, Math.round(55 + totalThrill * 4));
+      document.querySelector("#scoreStat").textContent = `${score} / 100`;
+      document.querySelector("#statusStat").textContent = unsafe ? "Unsafe" : "Ready";
+      positionTrain(0);
+    }
+
+    function positionTrain(index) {
+      const bounded = Math.max(0, Math.min(samples.length - 1, Math.round(index)));
+      const point = samples[bounded];
+      if (!point) return;
+      const previous = samples[Math.max(0, bounded - 1)];
+      const angle = Math.atan2(point.y - previous.y, point.x - previous.x) * 180 / Math.PI;
+      train.setAttribute("transform", `translate(${point.x} ${point.y}) rotate(${angle})`);
+
+      document.querySelector("#speedStat").textContent = `${point.speedMph.toFixed(1)} mph`;
+      document.querySelector("#gStat").textContent = `${point.gForce.toFixed(1)} g`;
+      document.querySelector("#heightStat").textContent = `${point.height.toFixed(0)} ft`;
+
+      if (failureIndex !== null && bounded >= failureIndex) {
+        failureMarker.style.display = "block";
+        failureMarker.setAttribute("transform", `translate(${samples[failureIndex].x} ${samples[failureIndex].y})`);
+      } else {
+        failureMarker.style.display = "none";
+      }
+    }
+
+    function stopRide() {
+      running = false;
+      rideIndex = 0;
+      direction = 1;
+      previousTime = 0;
+      positionTrain(0);
+      document.querySelector("#statusStat").textContent = failureIndex === null ? "Ready" : "Unsafe";
+    }
+
+    function startRide() {
+      stopRide();
+      running = true;
+      document.querySelector("#statusStat").textContent = "Riding";
+      previousTime = performance.now();
+      requestAnimationFrame(animateRide);
+    }
+
+    function animateRide(time) {
+      if (!running) return;
+      const delta = Math.min((time - previousTime) / 1000, 0.05);
+      previousTime = time;
+      const ftPerSvgPx = Number(lengthInput.value) / 790;
+      const point = samples[Math.round(rideIndex)];
+      if (!point) {
+        running = false;
+        document.querySelector("#statusStat").textContent = "Complete";
+        return;
+      }
+
+      if (failureIndex !== null && rideIndex >= failureIndex) {
+        direction = -1;
+        document.querySelector("#statusStat").textContent = "Roll back";
+      }
+
+      const feetPerSecond = Math.max(0, point.speedMph * 5280 / 3600);
+      const pixelsPerSecond = feetPerSecond / ftPerSvgPx;
+      rideIndex += direction * pixelsPerSecond * delta;
+
+      if (rideIndex <= 0 && direction < 0) {
+        rideIndex = 0;
+        running = false;
+        document.querySelector("#statusStat").textContent = "Rollback";
+        positionTrain(0);
+        return;
+      }
+
+      if (rideIndex >= samples.length - 1) {
+        rideIndex = samples.length - 1;
+        running = false;
+        document.querySelector("#statusStat").textContent = "Complete";
+      }
+
+      positionTrain(rideIndex);
+      if (running) requestAnimationFrame(animateRide);
+    }
+
+    [heightInput, lengthInput, styleInput].forEach(control => {
+      control.addEventListener("input", () => update(false));
+    });
+
+    const svg = document.querySelector("#trackSvg");
+    svg.addEventListener("pointermove", event => {
+      if (dragging === null) return;
+      const rect = svg.getBoundingClientRect();
+      const x = (event.clientX - rect.left) * 900 / rect.width;
+      const y = (event.clientY - rect.top) * 500 / rect.height;
+      points[dragging].x = x;
+      points[dragging].y = y;
+      clampPoint(dragging);
+      update(true);
+    });
+    window.addEventListener("pointerup", () => { dragging = null; });
+
+    document.querySelector("#resetButton").addEventListener("click", () => {
+      heightInput.value = 180;
+      lengthInput.value = 3200;
+      styleInput.value = "steel";
+      points = [
+        { x: 55, y: 170 },
+        { x: 200, y: 390 },
+        { x: 330, y: 390 },
+        { x: 520, y: 390 },
+        { x: 650, y: 250 },
+        { x: 845, y: 390 }
+      ];
+      stopRide();
+      document.querySelector("#coasterName").textContent = "Untitled Coaster";
+      update(false);
+    });
+
+    svg.addEventListener("dblclick", startRide);
+    document.querySelector("#rideButton").addEventListener("click", startRide);
+
+    document.querySelector("#saveButton").addEventListener("click", event => {
+      const name = `${styleInput.options[styleInput.selectedIndex].text} Coaster`;
+      const design = {
+        height: Number(heightInput.value),
+        length: Number(lengthInput.value),
+        style: styleInput.value,
+        points
+      };
+      localStorage.setItem("rollerCoasterDesign", JSON.stringify(design));
+      document.querySelector("#coasterName").textContent = name;
+      event.currentTarget.textContent = "Saved";
+      setTimeout(() => { event.currentTarget.textContent = "Save design"; }, 1200);
+    });
+
+    const saved = localStorage.getItem("rollerCoasterDesign");
+    if (saved) {
+      try {
+        const design = JSON.parse(saved);
+        heightInput.value = design.height ?? 180;
+        lengthInput.value = design.length ?? 3200;
+        styleInput.value = design.style ?? "steel";
+        if (Array.isArray(design.points) && design.points.length === 6) points = design.points;
+        document.querySelector("#coasterName").textContent = "Saved Coaster";
+      } catch (error) {
+        localStorage.removeItem("rollerCoasterDesign");
+      }
+    }
+
+    const dialog = document.querySelector("#physicsDialog");
+    document.querySelector("#physicsButton").addEventListener("click", () => dialog.showModal());
+    document.querySelector("#closePhysics").addEventListener("click", () => dialog.close());
+
+    update(false);
+  </script>
+</body>
+</html>
